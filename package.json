@@ -1,0 +1,15 @@
+{
+  "name": "mip-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Marketing Intelligence Platform",
+  "scripts": {
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "server:dev": "cd packages/server && npm run dev",
+    "client:dev": "cd packages/client && npm start",
+    "ai:dev": "cd packages/ai-service && python -m uvicorn main:app --reload --port 8000",
+    "db:seed": "cd packages/server && npx prisma db seed",
+    "db:reset": "cd packages/server && npx prisma migrate reset --force && npm run db:seed"
+  }
+}
