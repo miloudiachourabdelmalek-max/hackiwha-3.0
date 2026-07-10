@@ -1,0 +1,6 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Numeric metrics render in mono everywhere — a small, consistent tell that a value is data, not label. */
+.metric { @apply font-mono tabular-nums; }

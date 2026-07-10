@@ -1,0 +1,186 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MARKETING_MANAGER
+  ANALYST
+  VIEWER
+}
+
+model Organization {
+  id             String             @id @default(cuid())
+  name           String
+  slug           String             @unique
+  createdAt      DateTime           @default(now())
+  members        Membership[]
+  googleAccounts GoogleAdsAccount[]
+  experiences    Experience[]
+  notes          Note[]
+  campaigns      Campaign[]
+}
+
+model User {
+  id            String       @id @default(cuid())
+  email         String       @unique
+  passwordHash  String
+  name          String
+  createdAt     DateTime     @default(now())
+  memberships   Membership[]
+  refreshTokens RefreshToken[]
+  experiences   Experience[] @relation("ExperienceAuthor")
+  notes         Note[]
+}
+
+model Membership {
+  id             String       @id @default(cuid())
+  userId         String
+  organizationId String
+  role           Role
+  user           User         @relation(fields: [userId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([userId, organizationId])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model GoogleAdsAccount {
+  id             String       @id @default(cuid())
+  organizationId String
+  customerId     String
+  accessToken    String
+  refreshToken   String
+  lastSyncedAt   DateTime?
+  syncStatus     String       @default("idle")
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  campaigns      Campaign[]
+}
+
+model Campaign {
+  id                 String            @id @default(cuid())
+  organizationId     String
+  googleAdsAccountId String?
+  externalId         String?
+  name               String
+  status             String            @default("ENABLED")
+  channelType        String            @default("PERFORMANCE_MAX")
+  budgetMicros        BigInt
+  country            String?
+  startDate          DateTime?
+  endDate            DateTime?
+  organization       Organization      @relation(fields: [organizationId], references: [id])
+  googleAdsAccount   GoogleAdsAccount? @relation(fields: [googleAdsAccountId], references: [id])
+  metrics            CampaignMetric[]
+  experiences        Experience[]
+  notes              Note[]
+
+  @@index([organizationId, country])
+}
+
+model CampaignMetric {
+  id             String   @id @default(cuid())
+  campaignId     String
+  date           DateTime
+  impressions    Int
+  clicks         Int
+  conversions    Float
+  costMicros     BigInt
+  roas           Float
+  cpaMicros      BigInt
+  conversionRate Float
+  country        String?
+  campaign       Campaign @relation(fields: [campaignId], references: [id])
+
+  @@unique([campaignId, date, country])
+  @@index([campaignId, date])
+}
+
+model Experience {
+  id               String   @id @default(cuid())
+  organizationId   String
+  campaignId       String?
+
+  title            String
+  description      String?
+  goal             String?
+  hypothesis       String?
+
+  country          String?
+  language         String?
+  targetAudience   String?
+  industry         String?
+  category         String?
+  productName      String?
+  platform         String   @default("google_ads")
+
+  budgetMicros     BigInt?
+  spendMicros      BigInt?
+  roas             Float?
+  cpaMicros        BigInt?
+  ctr              Float?
+  conversionRate   Float?
+  revenueMicros    BigInt?
+  profitMicros     BigInt?
+
+  startDate        DateTime?
+  endDate          DateTime?
+
+  creativeUsed     String?
+  offer            String?
+  landingPage      String?
+  keywords         String[]
+  audience         String?
+
+  result           String?
+  lessonsLearned   String?
+  mistakesMade     String?
+  recommendations  String?
+
+  status           String   @default("draft")
+  tags             String[]
+  priority         String   @default("normal")
+
+  authorId         String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  organization     Organization @relation(fields: [organizationId], references: [id])
+  campaign         Campaign?    @relation(fields: [campaignId], references: [id])
+  author           User         @relation("ExperienceAuthor", fields: [authorId], references: [id])
+  notes            Note[]
+
+  @@index([organizationId, country])
+  @@index([organizationId, category])
+  @@index([organizationId, status])
+}
+
+model Note {
+  id             String      @id @default(cuid())
+  organizationId String
+  authorId       String
+  content        String
+  campaignId     String?
+  experienceId   String?
+  createdAt      DateTime    @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  author         User         @relation(fields: [authorId], references: [id])
+  campaign       Campaign?    @relation(fields: [campaignId], references: [id])
+  experience     Experience?  @relation(fields: [experienceId], references: [id])
+}
