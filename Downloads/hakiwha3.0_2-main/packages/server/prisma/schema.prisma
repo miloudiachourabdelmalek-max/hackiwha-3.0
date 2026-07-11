@@ -1,0 +1,322 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  logo      String?
+  plan      Plan     @default(ESSENTIAL)
+  planSince DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users         User[]
+  campaigns     Campaign[]
+  experiments   Experiment[]
+  memories      Memory[]
+  googleAccounts GoogleAccount[]
+}
+
+enum Plan {
+  ESSENTIAL
+  PREMIUM
+}
+
+model User {
+  id             String   @id @default(uuid())
+  email          String   @unique
+  password       String?
+  name           String
+  avatar         String?
+  role           Role     @default(VIEWER)
+  organizationId String?
+  googleId       String?  @unique
+  provider       Provider @default(LOCAL)
+  lastLoginAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization  Organization?  @relation(fields: [organizationId], references: [id])
+  experiments   Experiment[]
+  memories      Memory[]
+  comments      Comment[]
+  refreshTokens RefreshToken[]
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MANAGER
+  ANALYST
+  VIEWER
+}
+
+enum Provider {
+  LOCAL
+  GOOGLE
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model GoogleAccount {
+  id               String   @id @default(uuid())
+  googleCustomerId String
+  organizationId   String
+  accessToken      String
+  refreshToken     String
+  expiresAt        DateTime
+  lastSyncAt       DateTime?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  campaigns    Campaign[]
+  syncLogs     SyncLog[]
+}
+
+model SyncLog {
+  id              String     @id @default(uuid())
+  googleAccountId String
+  status          SyncStatus
+  campaignsCount  Int        @default(0)
+  errorMessage    String?
+  startedAt       DateTime   @default(now())
+  completedAt     DateTime?
+
+  googleAccount GoogleAccount @relation(fields: [googleAccountId], references: [id])
+}
+
+enum SyncStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model Campaign {
+  id               String         @id @default(uuid())
+  googleCampaignId String?
+  organizationId   String
+  googleAccountId  String?
+  name             String
+  type             CampaignType   @default(PERFORMANCE_MAX)
+  status           CampaignStatus @default(ACTIVE)
+  country          String
+  currency         String         @default("USD")
+  startDate        DateTime?
+  endDate          DateTime?
+  dailyBudget      Decimal?       @db.Decimal(12, 2)
+  totalBudget      Decimal?       @db.Decimal(12, 2)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  organization  Organization @relation(fields: [organizationId], references: [id])
+  googleAccount GoogleAccount? @relation(fields: [googleAccountId], references: [id])
+  assetGroups   AssetGroup[]
+  metrics       CampaignMetric[]
+  assetMetrics  AssetMetric[]
+  experiments   Experiment[]
+
+  @@index([organizationId, country])
+  @@index([organizationId, status])
+}
+
+enum CampaignType {
+  PERFORMANCE_MAX
+  SEARCH
+  DISPLAY
+  SHOPPING
+  VIDEO
+  APP
+  SMART
+}
+
+enum CampaignStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ARCHIVED
+}
+
+model AssetGroup {
+  id         String   @id @default(uuid())
+  campaignId String
+  name       String
+  status     String?
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  assets   Asset[]
+}
+
+model Asset {
+  id           String   @id @default(uuid())
+  assetGroupId String
+  type         String
+  content      String?
+  url          String?
+  status       String?
+
+  assetGroup  AssetGroup    @relation(fields: [assetGroupId], references: [id], onDelete: Cascade)
+  assetMetrics AssetMetric[]
+}
+
+model AssetMetric {
+  id          String   @id @default(uuid())
+  assetId     String
+  campaignId  String
+  clicks      Int      @default(0)
+  impressions Int      @default(0)
+  conversions Decimal  @default(0) @db.Decimal(10, 2)
+  cost        Decimal  @default(0) @db.Decimal(12, 2)
+  revenue     Decimal  @default(0) @db.Decimal(12, 2)
+  roas        Decimal? @db.Decimal(6, 2)
+  ctr         Decimal? @db.Decimal(5, 4)
+  convRate    Decimal? @db.Decimal(5, 4)
+
+  asset    Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([assetId, campaignId])
+}
+
+model CampaignMetric {
+  id          String   @id @default(uuid())
+  campaignId  String
+  date        DateTime @db.Date
+  clicks      Int      @default(0)
+  impressions Int      @default(0)
+  conversions Decimal  @default(0) @db.Decimal(10, 2)
+  cost        Decimal  @default(0) @db.Decimal(12, 2)
+  revenue     Decimal  @default(0) @db.Decimal(12, 2)
+  roas        Decimal? @db.Decimal(6, 2)
+  cpa         Decimal? @db.Decimal(10, 2)
+  ctr         Decimal? @db.Decimal(5, 4)
+  cpc         Decimal? @db.Decimal(10, 2)
+  convRate    Decimal? @db.Decimal(5, 4)
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, date])
+  @@index([date])
+}
+
+model Experiment {
+  id              String           @id @default(uuid())
+  organizationId  String
+  authorId        String
+  title           String
+  description     String?
+  campaignId      String?
+  country         String?
+  industry        String?
+  product         String?
+  category        String?
+  budget          Decimal?         @db.Decimal(12, 2)
+  actualSpend     Decimal?         @db.Decimal(12, 2)
+  roas            Decimal?         @db.Decimal(6, 2)
+  cpa             Decimal?         @db.Decimal(10, 2)
+  revenue         Decimal?         @db.Decimal(12, 2)
+  profit          Decimal?         @db.Decimal(12, 2)
+  startDate       DateTime?
+  endDate         DateTime?
+  creativeType    String?
+  landingPage     String?
+  audience        String?
+  result          ExperimentResult @default(UNKNOWN)
+  lessonsLearned  String?
+  mistakes        String?
+  recommendations String?
+  attachments     Json?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  organization Organization     @relation(fields: [organizationId], references: [id])
+  author       User             @relation(fields: [authorId], references: [id])
+  campaign     Campaign?        @relation(fields: [campaignId], references: [id])
+  tags         ExperimentTag[]
+  memories     Memory[]
+  comments     Comment[]
+
+  @@index([organizationId, result])
+  @@index([organizationId, country])
+}
+
+enum ExperimentResult {
+  WINNER
+  BREAK_EVEN
+  FAIL
+  UNKNOWN
+}
+
+model ExperimentTag {
+  id           String @id @default(uuid())
+  experimentId String
+  tag          String
+
+  experiment Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+
+  @@unique([experimentId, tag])
+  @@index([tag])
+}
+
+model Memory {
+  id             String       @id @default(uuid())
+  organizationId String
+  authorId       String
+  experimentId   String?
+  title          String
+  content        String
+  type           MemoryType   @default(LESSON)
+  isPublic       Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id])
+  author       User          @relation(fields: [authorId], references: [id])
+  experiment   Experiment?   @relation(fields: [experimentId], references: [id])
+  comments     Comment[]
+
+  @@index([organizationId, type])
+}
+
+enum MemoryType {
+  LESSON
+  MISTAKE
+  BEST_PRACTICE
+  INSIGHT
+  RECOMMENDATION
+}
+
+model Comment {
+  id           String    @id @default(uuid())
+  authorId     String
+  experimentId String?
+  memoryId     String?
+  parentId     String?
+  content      String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  author     User        @relation(fields: [authorId], references: [id])
+  experiment Experiment? @relation(fields: [experimentId], references: [id])
+  memory     Memory?     @relation(fields: [memoryId], references: [id])
+  parent     Comment?    @relation("CommentReplies", fields: [parentId], references: [id])
+  replies    Comment[]   @relation("CommentReplies")
+
+  @@index([experimentId])
+  @@index([memoryId])
+}

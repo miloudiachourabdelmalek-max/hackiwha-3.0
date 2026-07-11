@@ -1,0 +1,86 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: admind-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: admind
+      POSTGRES_USER: admind
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admind"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: admind-redis
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build:
+      context: ./packages/server
+      dockerfile: Dockerfile
+    container_name: admind-server
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://admind:${DB_PASSWORD:-password}@postgres:5432/admind
+      REDIS_URL: redis://redis:6379
+      PORT: 3001
+      NODE_ENV: production
+      JWT_SECRET: ${JWT_SECRET:-change-me}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+      GOOGLE_ADS_MODE: ${GOOGLE_ADS_MODE:-mock}
+      AI_SERVICE_URL: http://ai-service:8000
+
+  ai-service:
+    build:
+      context: ./packages/ai-service
+      dockerfile: Dockerfile
+    container_name: admind-ai
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://admind:${DB_PASSWORD:-password}@postgres:5432/admind
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+
+  client:
+    build:
+      context: ./packages/client
+      dockerfile: Dockerfile
+    container_name: admind-client
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - server
+    environment:
+      REACT_APP_API_URL: http://localhost:3001/api
+
+volumes:
+  pgdata:
