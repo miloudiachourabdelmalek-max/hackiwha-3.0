@@ -1,25 +1,25 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: mip-postgres
+    container_name: admind-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: mip
-      POSTGRES_USER: mip
+      POSTGRES_DB: admind
+      POSTGRES_USER: admind
       POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
     ports:
       - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mip"]
+      test: ["CMD-SHELL", "pg_isready -U admind"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   redis:
     image: redis:7-alpine
-    container_name: mip-redis
+    container_name: admind-redis
     restart: unless-stopped
     ports:
       - "6380:6379"
@@ -33,7 +33,7 @@ services:
     build:
       context: ./packages/server
       dockerfile: Dockerfile
-    container_name: mip-server
+    container_name: admind-server
     restart: unless-stopped
     ports:
       - "3001:3001"
@@ -43,7 +43,7 @@ services:
       redis:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://mip:${DB_PASSWORD:-password}@postgres:5432/mip
+      DATABASE_URL: postgresql://admind:${DB_PASSWORD:-password}@postgres:5432/admind
       REDIS_URL: redis://redis:6379
       PORT: 3001
       NODE_ENV: production
@@ -60,12 +60,12 @@ services:
     build:
       context: ./packages/ai-service
       dockerfile: Dockerfile
-    container_name: mip-ai
+    container_name: admind-ai
     restart: unless-stopped
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgresql://mip:${DB_PASSWORD:-password}@postgres:5432/mip
+      DATABASE_URL: postgresql://admind:${DB_PASSWORD:-password}@postgres:5432/admind
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
 
@@ -73,7 +73,7 @@ services:
     build:
       context: ./packages/client
       dockerfile: Dockerfile
-    container_name: mip-client
+    container_name: admind-client
     restart: unless-stopped
     ports:
       - "3000:3000"

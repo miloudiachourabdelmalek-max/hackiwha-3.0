@@ -1,8 +1,8 @@
 {
-  "name": "mip-platform",
+  "name": "admind-platform",
   "version": "1.0.0",
   "private": true,
-  "description": "Marketing Intelligence Platform",
+  "description": "AdMind",
   "scripts": {
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
